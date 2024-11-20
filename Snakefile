@@ -44,6 +44,25 @@ rule caption:
     dataset={wildcards.dataset} \
     out_file={output}
     """
+rule gen:
+  input:
+    lambda wildcards: [ancient(f) for f in getattr(rules, wildcards.dataset).input],
+     "src/evaluate.py"
+  output:
+      "outputs/{dataset}/{model}/gen_{lang}.csv"
+  wildcard_constraints:
+    lang="|".join(LANGS),
+    dataset="|".join(DATASETS+MULTI30K),
+    model="paligemma",
+  shell:
+    """
+    mkdir -p outputs/{wildcards.dataset}/{wildcards.model}
+    python src/evaluate.py \
+    lang={wildcards.lang} \
+    model={wildcards.model} \
+    dataset={wildcards.dataset} \
+    out_file={output}
+    """
 
 rule pos:
   input:
@@ -68,6 +87,17 @@ rule multi30k_lang:
     expand("outputs/{dataset}/{model}/results_{{lang}}.csv", dataset=DATASETS+MULTI30K, model=["ft-pali", "pos", "gemma-2b"])
   output:
     touch("outputs/{lang}.done")
+
+rule lang_gen:
+  input:
+    expand("outputs/{dataset}/paligemma/results_{{lang}}.csv", dataset=DATASETS)
+  output:
+    touch("outputs/{lang}.gen")
+rule multi30k_gen:
+  input:
+    expand("outputs/{dataset}/paligemma/results_{{lang}}.csv", dataset=DATASETS+MULTI30K)
+  output:
+    touch("outputs/{lang}.gen")
 
 rule all_lang:
   input:
@@ -104,6 +134,7 @@ rule combine_multi30k_gemma:
     """
 ruleorder:
   multi30k_lang > lang
+  multi30k_gen > lang_gen
 # rule download_3600:
 #   output:
 #       "outputs/results_{lang}_xm.csv"
