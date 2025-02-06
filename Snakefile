@@ -7,6 +7,7 @@ LANGS = [
 LANGS_MULTI30K = ['ar', 'cs', 'de', 'en', 'fr']
 DATASETS = ['xm3600', 'coco35']
 MULTI30K = ['multi30k', 'multi30k_train']
+STAIR = ['stair', 'stair_train']
 include: "./data.smk"
 
 rule avg_img:
@@ -33,7 +34,7 @@ rule caption:
       "outputs/{dataset}/{model}/results_{lang}.csv"
   wildcard_constraints:
     lang="|".join(LANGS),
-    dataset="|".join(DATASETS+MULTI30K),
+    dataset="|".join(DATASETS+MULTI30K+STAIR),
     model="gemma-2b|paligemma|ft-pali",
   shell:
     """
@@ -52,7 +53,7 @@ rule gen:
       "outputs/{dataset}/{model}/gen_{lang}.csv"
   wildcard_constraints:
     lang="|".join(LANGS),
-    dataset="|".join(DATASETS+MULTI30K),
+    dataset="|".join(DATASETS+MULTI30K+STAIR),
     model="paligemma",
   shell:
     """
@@ -134,7 +135,7 @@ rule combine_multi30k_gemma:
     """
 ruleorder:
   multi30k_lang > lang
-  multi30k_gen > lang_gen
+  #multi30k_gen > lang_gen
 # rule download_3600:
 #   output:
 #       "outputs/results_{lang}_xm.csv"

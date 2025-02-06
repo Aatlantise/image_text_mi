@@ -21,7 +21,7 @@ from transformers import (
     AutoModelForCausalLM,
     PaliGemmaProcessor,
 )
-from dataset import Multi30kDataset, COCO35Dataset, XM3600Dataset
+from dataset import Multi30kDataset, COCO35Dataset, XM3600Dataset, StairDataset
 from utils import WhitespaceCorrector, renumber_and_join_sents
 
 logging.basicConfig(
@@ -207,6 +207,8 @@ def get_data(cfg, processor, tokenizer):
         dataset_class = COCO35Dataset
     elif cfg.dataset.name == "multi30k":
         dataset_class = Multi30kDataset
+    elif cfg.dataset.name in ["stair", "stair_train"]:
+        dataset_class = StairDataset
     else:
         raise ValueError(f"Dataset {cfg.dataset.name} not implemented.")
     data = DataLoader(
@@ -220,6 +222,8 @@ def get_data(cfg, processor, tokenizer):
         num_workers=cfg.num_workers,
         collate_fn=lambda b: prepare_batch(b, processor, prefix=prefix),
     )
+    # for batch in data:
+    #    pass
     return data, prefix_len
 
 
@@ -235,8 +239,9 @@ def main(cfg):
     else:
         tokenizer = processor
 
-    data, prefix_len = get_data(cfg, processor, tokenizer)
     corrector = WhitespaceCorrector(tokenizer)
+
+    data, prefix_len = get_data(cfg, processor, tokenizer)
 
     full_results = []
 

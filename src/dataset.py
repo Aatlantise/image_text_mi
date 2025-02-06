@@ -107,13 +107,62 @@ class COCO35TextDataset(Dataset):
         return f'caption {caption["trg_lang"]}\n{caption["translation_tokenized"]}'
 
 
-class COCO35Dataset(Dataset):
+class StairDataset(Dataset):
     def __init__(self, data_dir, split, lang, transform=None):
+        self.data_dir = Path(data_dir)
+        self.split = split
+        assert self.split in ["val", "train"]
+        self.transform = transform
+        self.lang = lang
+        assert lang == "ja"
+        with open(
+            Path(self.data_dir)
+            / "annotations"
+            / f"stair_captions_v1.2_{self.split}_tokenized.json",
+            "r",
+        ) as f:
+            captions = json.load(f)["annotations"]
+            # TODO: what if error?
+        self.captions = self._get_split(captions)
+
+    def _get_split(self, captions):
+        data = []
+        for cap in tqdm(captions):
+            img_id = int(cap["image_id"])
+            path = self.data_dir / "val2017" / f"{img_id:012d}.jpg"
+            path2 = self.data_dir / "train2017" / f"{img_id:012d}.jpg"
+            if path.is_file():
+                cap["image_path"] = path
+                data.append(cap)
+            elif path2.is_file():
+                cap["image_path"] = path2
+                data.append(cap)
+            else:
+                print(f"Image not found: {path}", file=sys.stderr)
+        return data
+
+    def __len__(self):
+        return len(self.captions)
+
+    def __getitem__(self, idx):
+        caption = self.captions[idx]
+        img_id = int(caption["image_id"])
+        # img_id = int(caption["image_id"].split("_")[0])
+        img = Image.open(caption["image_path"])
+        if img.mode != "RGB":
+            img = img.convert(mode="RGB")
+        if self.transform is not None:
+            img = self.transform(images=img)
+        return img, caption["tokenized_caption"], img_id
+
+
+class COCO35Dataset(Dataset):
+    def __init__(self, data_dir, split, transform=None):
         self.data_dir = Path(data_dir)
         self.split = split
         assert self.split in ["dev"]
         self.transform = transform
-        self.lang = lang
+        self.lang = "ja"
         with open(
             Path(self.data_dir) / "annotations" / "dev_35_caption.jsonl", "r"
         ) as f:

@@ -95,6 +95,12 @@ rule coco35:
       "data/coco/annotations/dev_35_caption.jsonl",
       "data/coco/annotations/train_35_caption.jsonl",
 
+rule stair:
+  input:
+    "data/coco/val2017",
+    "data/coco/train2017",
+    "data/coco/annotations/stair_captions_v1.2_train_tokenized.json",
+    "data/coco/annotations/stair_captions_v1.2_val_tokenized.json",
 
 ######################
 #   XM3600 DATASET   #
