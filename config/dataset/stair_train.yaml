@@ -1,0 +1,3 @@
+name: stair
+split: train
+path: data/coco

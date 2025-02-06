@@ -1,0 +1,3 @@
+name: stair
+path: data/coco
+split: val
