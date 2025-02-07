@@ -9,9 +9,8 @@ from rich.logging import RichHandler
 from torch.utils.data import DataLoader
 
 from tqdm import tqdm
-from dataset import Multi30kDataset, COCO35Dataset, XM3600Dataset
-from transformers import (
-    AutoProcessor,
+from dataset import Multi30kDataset, COCO35Dataset, XM3600Dataset, StairDataset
+from transformers import ( AutoProcessor,
     PaliGemmaForConditionalGeneration,
     PaliGemmaProcessor,
 )
@@ -25,6 +24,7 @@ traceback.install()
 
 def prepare_batch(batch, processor, prefix):
     images, captions, image_paths = zip(*batch)
+    images = list(images)
 
     if isinstance(processor, PaliGemmaProcessor):
         prefix = prefix.strip()
@@ -112,6 +112,8 @@ def get_data(cfg, processor, tokenizer):
         dataset_class = COCO35Dataset
     elif cfg.dataset.name == "multi30k":
         dataset_class = Multi30kDataset
+    elif cfg.dataset.name == "stair":
+        dataset_class = StairDataset
     else:
         raise ValueError(f"Dataset {cfg.dataset.name} not implemented.")
     data = DataLoader(
@@ -146,12 +148,14 @@ def main(cfg):
 
     # pdb.set_trace()
     for batch in tqdm(data):
+
+        print(batch.keys())
         inputs = {
             k: batch[k].to(device)
             for k in [
                 "pixel_values",
-                "token_type_ids",
-                "labels",
+                #"token_type_ids",
+                #"labels",
                 "input_ids",
                 "attention_mask",
             ]

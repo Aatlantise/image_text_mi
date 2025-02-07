@@ -1,4 +1,5 @@
 import logging
+import pdb
 import os
 from pathlib import Path
 
@@ -121,9 +122,11 @@ def predict_step(model, batch, tokenizer, prefix_len, corrector):
 
 def prepare_batch(batch, processor, prefix="Caption the image in English."):
     images, captions, image_paths = zip(*batch)
+    images = list(images)
 
     if isinstance(processor, PaliGemmaProcessor):
         prefix = prefix.strip()
+        # pdb.set_trace()
         batch = processor(
             images=images,
             text=[prefix] * len(captions),

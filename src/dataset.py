@@ -123,6 +123,7 @@ class StairDataset(Dataset):
         ) as f:
             captions = json.load(f)["annotations"]
             # TODO: what if error?
+        print(len(captions))
         self.captions = self._get_split(captions)
 
     def _get_split(self, captions):
@@ -152,17 +153,19 @@ class StairDataset(Dataset):
         if img.mode != "RGB":
             img = img.convert(mode="RGB")
         if self.transform is not None:
+            print(self.transform)
+            import pdb; pdb.set_trace()
             img = self.transform(images=img)
         return img, caption["tokenized_caption"], img_id
 
 
 class COCO35Dataset(Dataset):
-    def __init__(self, data_dir, split, transform=None):
+    def __init__(self, data_dir, split, lang, transform=None):
         self.data_dir = Path(data_dir)
         self.split = split
         assert self.split in ["dev"]
         self.transform = transform
-        self.lang = "ja"
+        self.lang = lang 
         with open(
             Path(self.data_dir) / "annotations" / "dev_35_caption.jsonl", "r"
         ) as f:
@@ -205,6 +208,7 @@ class COCO35Dataset(Dataset):
         if img.mode != "RGB":
             img = img.convert(mode="RGB")
         if self.transform is not None:
+            import pdb; pdb.set_trace()
             img = self.transform(images=img)
         return img, caption["translation_tokenized"], img_id
 
