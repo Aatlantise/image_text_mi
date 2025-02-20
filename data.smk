@@ -95,6 +95,24 @@ rule coco35:
       "data/coco/annotations/dev_35_caption.jsonl",
       "data/coco/annotations/train_35_caption.jsonl",
 
+rule stairz:
+  output:
+    temp("stair_captions_v1.2.tar.gz"),
+  shell:
+    """
+    wget https://github.com/STAIR-Lab-CIT/STAIR-captions/raw/refs/heads/master/stair_captions_v1.2.tar.gz
+    """
+rule stair_caps:
+  input:
+    "stair_captions_v1.2.tar.gz",
+  output:
+    "data/coco/annotations/stair_captions_v1.2_train_tokenized.json",
+    "data/coco/annotations/stair_captions_v1.2_val_tokenized.json",
+  shell:
+    """
+    tar -xzf stair_captions_v1.2.tar --directory data/coco/annotations
+    """
+
 rule stair:
   input:
     "data/coco/val2017",

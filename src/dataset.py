@@ -112,6 +112,7 @@ class StairDataset(Dataset):
         self.data_dir = Path(data_dir)
         self.split = split
         assert self.split in ["val", "train"]
+        # print(self.split)
         self.transform = transform
         self.lang = lang
         assert lang == "ja"

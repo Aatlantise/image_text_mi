@@ -72,7 +72,7 @@ rule pos:
   output:
     "outputs/{dataset}/pos/results_{lang}.csv"
   wildcard_constraints:
-    dataset="|".join(DATASETS+MULTI30K),
+    dataset="|".join(DATASETS+MULTI30K+STAIR),
     lang="|".join(LANGS)
   shell:
     "python src/pos.py {wildcards.lang} {input} > {output}"
@@ -118,6 +118,7 @@ rule combine_multi30k:
     --model ft-pali \
     --output outputs/results_{wildcards.lang}_multi30k_tagged.csv 
     """
+
 
 rule combine_multi30k_gemma:
   input:
