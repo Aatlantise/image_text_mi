@@ -22,7 +22,7 @@ from transformers import (
     AutoModelForCausalLM,
     PaliGemmaProcessor,
 )
-from dataset import Multi30kDataset, COCO35Dataset, XM3600Dataset, StairDataset
+from dataset import Multi30kDataset, COCO35Dataset, XM3600Dataset, StairDataset, COCODataset, COCOInOnDataset
 from utils import WhitespaceCorrector, renumber_and_join_sents
 
 logging.basicConfig(
@@ -121,7 +121,7 @@ def predict_step(model, batch, tokenizer, prefix_len, corrector):
 
 
 def prepare_batch(batch, processor, prefix="Caption the image in English."):
-    images, captions, image_paths = zip(*batch)
+    images, caption_dicts, image_paths = zip(*batch)
     images = list(images)
 
     if isinstance(processor, PaliGemmaProcessor):
@@ -129,20 +129,23 @@ def prepare_batch(batch, processor, prefix="Caption the image in English."):
         # pdb.set_trace()
         batch = processor(
             images=images,
-            text=[prefix] * len(captions),
-            suffix=captions,
+            text=[prefix] * len(caption_dicts),
+            suffix=[c['text'] for c in caption_dicts],
             padding="longest",
             truncation=True,
             return_tensors="pt",
         )
 
-        captions = [f"{prefix}{caption}" for caption in captions]
+        captions = [f"{prefix}{c['text']}" for c in caption_dicts]
     else:
-        captions = [f"{prefix}{caption}" for caption in captions]
+        captions = [f"{prefix}{c['text']}" for c in caption_dicts]
         batch = processor(
             captions, return_tensors="pt", padding="longest", add_special_tokens=True
         )
-    batch.update({"image_paths": image_paths, "captions": captions})
+    batch.update({"image_paths": image_paths, "captions": captions,
+                  "is_original": [c['is_original'] for c in caption_dicts],
+                  "preposition": [c['preposition'] for c in caption_dicts]
+                  })
     return batch
 
 
@@ -157,6 +160,15 @@ def load_model(cfg):
                 "bnb_4bit_compute_dtype": torch.bfloat16,
             }
         )
+
+    kwargs.update(
+        {
+            "torch_dtype": torch.bfloat16,
+            "load_in_4bit": True,
+        }
+    )
+
+
     if cfg.name in ["paligemma"]:  # "mblip-bloomz", "mblip-mt0"]:
         model = PaliGemmaForConditionalGeneration.from_pretrained(cfg.path, **kwargs)
 
@@ -182,21 +194,25 @@ def get_data(cfg, processor, tokenizer):
 
     if cfg.dataset.name == "test":
         # images = [Image.open("data/multi30k/images/1001465944.jpg")]
-        images = [Image.open("data/multi30k/images/227689211.jpg")]
+        # images = [Image.open("data/multi30k/images/227689211.jpg")]
+        images = []
         images += [Image.open(cfg.dataset.path)] * 4 + [Image.open("test2.jpg")]
         captions = [
             # "A woman with a large purse is walking by a gate.",
-            "A police officer in his uniform wearing an ear piece.",
-            "A test sentence.",
+            # "A police officer in his uniform wearing an ear piece.",
+            # "A test sentence.",
             "A bicycle replica with a clock as the front wheel.",
             "A cat is laying on top of a dryer.",
             "A test sentence with indubitably obscure verbage.",
             "Two dogs and a cat.",
             "Two cats and a dog.",
-            "the the the the the." "A bicycle replica with a clock as the front wheel.",
+            # "the the the the the.",
+            # "A bicycle replica with a clock as the front wheel.",
         ]
         image_paths = (
-            ["data/multi30k/1001465944.jpg"] + [cfg.dataset.path] * 4 + ["test2.jpg"]
+            # ["data/multi30k/1001465944.jpg"] +
+            [cfg.dataset.path] * 4 +
+            ["test2.jpg"]
         )
         data = [
             prepare_batch(
@@ -212,6 +228,8 @@ def get_data(cfg, processor, tokenizer):
         dataset_class = Multi30kDataset
     elif cfg.dataset.name in ["stair", "stair_train"]:
         dataset_class = StairDataset
+    elif cfg.dataset.name == "inon":
+        dataset_class = COCOInOnDataset
     else:
         raise ValueError(f"Dataset {cfg.dataset.name} not implemented.")
     data = DataLoader(
@@ -235,7 +253,8 @@ def main(cfg):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     model, processor = load_model(cfg.model)
-    model.eval().to(device)
+    # model.eval().to(device)
+    model.eval()
 
     if hasattr(processor, "tokenizer"):
         tokenizer = processor.tokenizer
@@ -262,6 +281,8 @@ def main(cfg):
             {
                 "image_id": [batch["image_paths"][i] for i in results["sentence"]],
                 "caption": [batch["captions"][i] for i in results["sentence"]],
+                "is_original": [batch["is_original"][i] for i in results["sentence"]],
+                "preposition": [batch["preposition"][i] for i in results["sentence"]],
             }
         )
         full_results.append(pd.DataFrame(results))

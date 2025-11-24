@@ -4,6 +4,6 @@ defaults:
   - model: paligemma
   - pos: mbert
 batch_size: 16
-out_file: results_de.csv
+out_file: results_en.csv
 num_workers: 1
-lang: de
+lang: en

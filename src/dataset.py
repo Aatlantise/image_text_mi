@@ -249,7 +249,6 @@ class Multi30kDataset(Dataset):
             img = self.transform(images=img)
         return img, caption["caption"].strip(), caption["image_id"]
 
-
 class COCODataset(Dataset):
     def __init__(self, data_dir, split, transform=None):
         self.data_dir = Path(data_dir)
@@ -290,3 +289,111 @@ class COCODataset(Dataset):
         if self.transform is not None:
             img = self.transform(images=img)
         return img, caption["caption"], img_id
+
+
+
+class COCOInOnDataset(Dataset):
+    """
+    Dataset that filters COCO captions to those with exactly one 'in' or 'on',
+    adds switched variants ('in' <-> 'on'), and includes image paths.
+    """
+    def __init__(self, data_dir, split, lang, transform=None):
+        self.data_dir = Path(data_dir)
+        self.split = split
+        assert self.split in ["dev", "val"]
+        self.transform = transform
+        self.lang = lang
+
+        # Load JSONL annotation file (same format as COCO35Dataset)
+        with open(
+            self.data_dir / "annotations" / "dev_35_caption.jsonl", "r"
+        ) as f:
+            captions = [json.loads(jline) for jline in f.readlines()]
+
+        # Locate image files (reusing the same _get_split logic)
+        base_data = self._get_split(captions)
+
+        # Filter and augment captions
+        self.captions = self._build_in_on_dataset(base_data)
+
+    def _get_split(self, captions):
+        data = []
+        captions = captions[:100]
+        for cap in tqdm(captions, desc="Locating images"):
+            img_id = int(cap["image_id"].split("_")[0])
+            path = self.data_dir / "val2014" / f"COCO_val2014_{img_id:012d}.jpg"
+            path2 = self.data_dir / "train2017" / f"{img_id:012d}.jpg"
+
+            if (
+                cap["trg_lang"] == self.lang
+                or (self.lang == "en" and cap["trg_lang"] == "fr")
+            ):
+                if path.is_file():
+                    cap["image_path"] = path
+                    data.append(cap)
+                elif path2.is_file():
+                    cap["image_path"] = path2
+                    data.append(cap)
+                else:
+                    print(f"Image not found: {path}", file=sys.stderr)
+
+            if self.lang == "en" and cap["trg_lang"] == "fr":
+                cap["translation_tokenized"] = cap["caption_tokenized"]
+                cap["trg_lang"] = "en"
+
+        return data
+
+    def _build_in_on_dataset(self, data):
+        """
+        Keep only captions with exactly one 'in' or 'on'.
+        For each, add a switched variant ('in' <-> 'on').
+        """
+        result = []
+        pattern = re.compile(r"\b(in|on)\b", flags=re.IGNORECASE)
+
+        for cap in tqdm(data, desc="Filtering and augmenting captions"):
+            caption_text = cap.get("caption") or cap.get("translation_tokenized", "")
+            matches = pattern.findall(caption_text)
+            if len(matches) != 1:
+                continue
+
+            preposition = matches[0].lower()
+            other = "on" if preposition == "in" else "in"
+            switched_text = re.sub(rf"\b{preposition}\b", other, caption_text, count=1)
+
+            # Original
+            orig_cap = deepcopy(cap)
+            orig_cap["variant"] = "original"
+            orig_cap["caption_switched"] = switched_text
+            orig_cap["caption"] = caption_text
+            result.append(orig_cap)
+
+            # Switched
+            switched_cap = deepcopy(cap)
+            switched_cap["variant"] = "switched"
+            switched_cap["original_caption"] = caption_text
+            switched_cap["caption"] = switched_text
+            result.append(switched_cap)
+
+        return result
+
+    def __len__(self):
+        return len(self.captions)
+
+    def __getitem__(self, idx):
+        cap = self.captions[idx]
+        img_path = cap["image_path"]
+        img = Image.open(img_path)
+        if img.mode != "RGB":
+            img = img.convert(mode="RGB")
+        if self.transform is not None:
+            img = self.transform(images=img)
+
+        caption_dict = {
+            "text": cap["caption"],
+            "preposition": cap.get("preposition", None),
+            "is_original": cap.get("is_original", None),
+        }
+
+        return img, caption_dict, str(img_path)
+
