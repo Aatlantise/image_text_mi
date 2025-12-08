@@ -1,11 +1,14 @@
 import json
 import sys
 from pathlib import Path
+import re
+from copy import deepcopy
 
 from iso639 import Lang
 from PIL import Image
 from torch.utils.data import Dataset
 from tqdm.rich import tqdm
+from tqdm import tqdm as basic_tqdm
 
 
 class XM3600Dataset(Dataset):
@@ -318,11 +321,9 @@ class COCOInOnDataset(Dataset):
 
     def _get_split(self, captions):
         data = []
-        captions = captions[:100]
         for cap in tqdm(captions, desc="Locating images"):
             img_id = int(cap["image_id"].split("_")[0])
             path = self.data_dir / "val2014" / f"COCO_val2014_{img_id:012d}.jpg"
-            path2 = self.data_dir / "train2017" / f"{img_id:012d}.jpg"
 
             if (
                 cap["trg_lang"] == self.lang
@@ -330,9 +331,6 @@ class COCOInOnDataset(Dataset):
             ):
                 if path.is_file():
                     cap["image_path"] = path
-                    data.append(cap)
-                elif path2.is_file():
-                    cap["image_path"] = path2
                     data.append(cap)
                 else:
                     print(f"Image not found: {path}", file=sys.stderr)
@@ -363,16 +361,20 @@ class COCOInOnDataset(Dataset):
 
             # Original
             orig_cap = deepcopy(cap)
-            orig_cap["variant"] = "original"
-            orig_cap["caption_switched"] = switched_text
+            # orig_cap["variant"] = "original"
+            # orig_cap["caption_switched"] = switched_text
             orig_cap["caption"] = caption_text
+            orig_cap["preposition"] = preposition
+            orig_cap["is_original"] = True
             result.append(orig_cap)
 
             # Switched
             switched_cap = deepcopy(cap)
-            switched_cap["variant"] = "switched"
-            switched_cap["original_caption"] = caption_text
+            # switched_cap["variant"] = "switched"
+            # switched_cap["original_caption"] = caption_text
             switched_cap["caption"] = switched_text
+            switched_cap["preposition"] = other
+            switched_cap["is_original"] = False
             result.append(switched_cap)
 
         return result
@@ -397,3 +399,73 @@ class COCOInOnDataset(Dataset):
 
         return img, caption_dict, str(img_path)
 
+class XMInOnDataset(COCOInOnDataset):
+    """
+    Dataset that filters COCO captions to those with exactly one 'in' or 'on',
+    adds switched variants ('in' <-> 'on'), and includes image paths.
+    """
+    def __init__(self, data_dir, split, lang, transform=None):
+        self.data_dir = Path(data_dir)
+        self.split = split
+        self.transform = transform
+        self.lang = lang
+
+        # Load JSONL annotation file (same format as COCO35Dataset)
+        with open(
+            self.data_dir / "xm3600_captions.jsonl", "r"
+        ) as f:
+            captions = [json.loads(jline) for jline in f.readlines()]
+
+        # Locate image files (reusing the same _get_split logic)
+        base_data = self._get_split(captions)
+
+        # Filter and augment captions
+        self.captions = self._build_in_on_dataset(base_data)
+
+    def _get_split(self, captions):
+        data = []
+        for cap in tqdm(captions):
+            for key in cap.keys():
+                if (self.lang == "all" or key in self.lang) and len(key) == 2:
+                    for c in cap[key]["caption/tokenized"]:
+                        data.append({"caption": c,
+                                     "lang": key,
+                                     "image_path": f"{self.data_dir}/{cap['image/key']}.jpg"}
+                                    )
+
+        return data
+
+class MultiInOnDataset(COCOInOnDataset):
+    """
+    Dataset that filters COCO captions to those with exactly one 'in' or 'on',
+    adds switched variants ('in' <-> 'on'), and includes image paths.
+    """
+    def __init__(self, data_dir, split, lang, transform=None):
+        self.data_dir = Path(data_dir)
+        self.split = split
+        self.transform = transform
+        self.lang = lang
+
+        base_data = []
+        with open(
+            self.data_dir / "results.csv", "r"
+        ) as f:
+            first = True
+            for line in basic_tqdm(f):
+                if first:
+                    first = False
+                    continue
+                fields = line.strip().split("| ")
+                if len(fields) == 3:
+                    image_path, n, caption = fields
+                    base_data.append({
+                        "caption": caption,
+                        "image_path": f"{self.data_dir}/flickr30k-images/{image_path}",
+                        "lang": self.lang,
+                        "n": int(n),
+                    })
+                else:
+                    continue
+
+        # Filter and augment captions
+        self.captions = self._build_in_on_dataset(base_data)

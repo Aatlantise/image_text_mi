@@ -1,9 +1,9 @@
 defaults:
-  - dataset: coco35
+  - dataset: multi_inon
   - _self_
   - model: paligemma
   - pos: mbert
 batch_size: 16
-out_file: results_en.csv
-num_workers: 1
+out_file: multi_results_en.csv
+num_workers: 4
 lang: en

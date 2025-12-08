@@ -22,7 +22,8 @@ from transformers import (
     AutoModelForCausalLM,
     PaliGemmaProcessor,
 )
-from dataset import Multi30kDataset, COCO35Dataset, XM3600Dataset, StairDataset, COCODataset, COCOInOnDataset
+from dataset import (Multi30kDataset, COCO35Dataset, XM3600Dataset, StairDataset,
+                     COCODataset, COCOInOnDataset, XMInOnDataset, MultiInOnDataset)
 from utils import WhitespaceCorrector, renumber_and_join_sents
 
 logging.basicConfig(
@@ -120,12 +121,12 @@ def predict_step(model, batch, tokenizer, prefix_len, corrector):
     return data
 
 
-def prepare_batch(batch, processor, prefix="Caption the image in English."):
+def prepare_batch(batch, processor, prefix="caption en\n"):
     images, caption_dicts, image_paths = zip(*batch)
     images = list(images)
 
     if isinstance(processor, PaliGemmaProcessor):
-        prefix = prefix.strip()
+        # prefix = prefix.strip()
         # pdb.set_trace()
         batch = processor(
             images=images,
@@ -230,6 +231,10 @@ def get_data(cfg, processor, tokenizer):
         dataset_class = StairDataset
     elif cfg.dataset.name == "inon":
         dataset_class = COCOInOnDataset
+    elif cfg.dataset.name == "xm_inon":
+        dataset_class = XMInOnDataset
+    elif cfg.dataset.name == "multi_inon":
+        dataset_class = MultiInOnDataset
     else:
         raise ValueError(f"Dataset {cfg.dataset.name} not implemented.")
     data = DataLoader(
@@ -303,7 +308,7 @@ def main(cfg):
     out_file = f"{hydra_output}/../../../{cfg.out_file}"
     # add a date and time column
     full_results["date"] = pd.to_datetime("today").strftime("%Y-%m-%d-%H-%M")
-    with open(out_file, "w") as f:
+    with open(out_file, "w", encoding="utf-8") as f:
         full_results.to_csv(f, index=False)
     # os.symlink(
     #     f"{hydra_output}/{out_file.name}", f""
