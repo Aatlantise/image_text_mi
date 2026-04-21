@@ -1,0 +1,9 @@
+defaults:
+  - dataset: test
+  - _self_
+  - model: paligemma
+  - pos: mbert
+batch_size: 16
+out_file: test.csv
+num_workers: 4
+lang: en

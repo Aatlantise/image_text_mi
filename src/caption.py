@@ -144,8 +144,8 @@ def prepare_batch(batch, processor, prefix="caption en\n"):
             captions, return_tensors="pt", padding="longest", add_special_tokens=True
         )
     batch.update({"image_paths": image_paths, "captions": captions,
-                  "is_original": [c['is_original'] for c in caption_dicts],
-                  "preposition": [c['preposition'] for c in caption_dicts]
+                  "is_original": [c['is_original'] for c in caption_dicts] if 'is_original' in caption_dicts[0] else None,
+                  "preposition": [c['preposition'] for c in caption_dicts] if 'preposition' in caption_dicts[0] else None,
                   })
     return batch
 
@@ -194,27 +194,14 @@ def get_data(cfg, processor, tokenizer):
     prefix_len = len(tokenizer(prefix)["input_ids"]) - 1
 
     if cfg.dataset.name == "test":
-        # images = [Image.open("data/multi30k/images/1001465944.jpg")]
-        # images = [Image.open("data/multi30k/images/227689211.jpg")]
-        images = []
-        images += [Image.open(cfg.dataset.path)] * 4 + [Image.open("test2.jpg")]
+        image_paths = ["horse_orig.jpg"]*2 + ["horse_nano.jpg"]*2
+        images = [Image.open(path) for path in image_paths]
         captions = [
-            # "A woman with a large purse is walking by a gate.",
-            # "A police officer in his uniform wearing an ear piece.",
-            # "A test sentence.",
-            "A bicycle replica with a clock as the front wheel.",
-            "A cat is laying on top of a dryer.",
-            "A test sentence with indubitably obscure verbage.",
-            "Two dogs and a cat.",
-            "Two cats and a dog.",
-            # "the the the the the.",
-            # "A bicycle replica with a clock as the front wheel.",
+            {"text": "Two brown horses standing next to each other in a field"},
+            {"text": "Two brown horses standing next to each other in a field"},
+            {"text": "Two brown horses standing next to each other on a field"},
+            {"text": "Two brown horses standing next to each other on a field"},
         ]
-        image_paths = (
-            # ["data/multi30k/1001465944.jpg"] +
-            [cfg.dataset.path] * 4 +
-            ["test2.jpg"]
-        )
         data = [
             prepare_batch(
                 zip(*(images, captions, image_paths)), processor, prefix=prefix
@@ -253,9 +240,11 @@ def get_data(cfg, processor, tokenizer):
     return data, prefix_len
 
 
-@hydra.main(config_path="../config", config_name="config", version_base="1.2")
+@hydra.main(config_path="../config", config_name="test_config", version_base="1.2")
 def main(cfg):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    cfg.lang = 'en'
 
     model, processor = load_model(cfg.model)
     # model.eval().to(device)

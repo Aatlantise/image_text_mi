@@ -7,3 +7,4 @@ data2
 .snakemake/
 test/
 data
+.idea/*
